@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*groq*.key
+*groq*.txt
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Coverage and reports
+.coverage
+htmlcov/
+coverage.xml
+
+# Logs
+*.log
+
+# Local test image artifacts (generated during manual testing at repo root)
+/test_chart_*.png
+

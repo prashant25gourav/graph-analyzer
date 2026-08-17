@@ -1,0 +1,5 @@
+# SPA fallback: serve index.html for client-side routes (React Router).
+# Honored by Netlify / Cloudflare Pages. On Render Static Sites, add the
+# equivalent rewrite in the dashboard (Source: /*  Destination: /index.html
+# Action: Rewrite) or via the static site's routes. See README "Deployment".
+/*    /index.html   200
