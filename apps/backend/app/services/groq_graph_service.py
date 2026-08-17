@@ -82,6 +82,14 @@ class GroqGraphService:
                     }
                 ],
                 temperature=0.1,
+                # qwen/qwen3.6-27b is a qwen3 reasoning model. Disable reasoning
+                # (reasoning_effort="none") so the model spends its generation on
+                # the answer, and force JSON Object Mode so the content is a valid
+                # JSON object. Without reasoning_effort="none" the model reasons
+                # under the JSON constraint and returns empty content, which Groq
+                # rejects with 400 json_validate_failed.
+                response_format={"type": "json_object"},
+                reasoning_effort="none",
                 timeout=self.settings.request_timeout_seconds,
             )
         except Exception as exc:  # noqa: BLE001
@@ -116,6 +124,10 @@ class GroqGraphService:
                 model=self.settings.groq_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
+                # Same config as analyze_graph: reasoning disabled + JSON Object
+                # Mode so the interpretation comes back as a valid JSON object.
+                response_format={"type": "json_object"},
+                reasoning_effort="none",
                 timeout=self.settings.request_timeout_seconds,
             )
         except Exception as exc:  # noqa: BLE001
@@ -139,7 +151,9 @@ def get_graph_service(settings: Settings = Depends(get_settings)) -> GroqGraphSe
 def _single_graph_prompt() -> str:
     return (
         "You are an expert data analyst specialized in graph understanding. "
-        "Analyze the provided graph image and return only valid JSON with no markdown, no prose outside JSON. "
+        "Analyze the provided graph image and return exactly one JSON object. "
+        "Output only that JSON object: no markdown, no code fences, no reasoning, "
+        "and no explanatory text before or after it. "
         "Use this exact structure and key names: "
         "{"
         '"graph_type": string, '
@@ -158,7 +172,7 @@ def _single_graph_prompt() -> str:
         '"summary": string, '
         '"uncertainty_notes": string[]'
         "}. "
-        "Rules: If any field cannot be determined, return 'Not Available'. "
+        "Rules: Use 'Not Available' only when the chart genuinely does not provide a value. "
         "Never invent precise numbers when uncertain. Use null for unknown numeric values and add an uncertainty note. "
         "Return exactly 5 observations, 3 business_insights, and 3 recommendations. "
         "Summary should be around 100 to 150 words when possible."
