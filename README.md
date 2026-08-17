@@ -1,205 +1,255 @@
 # AI Graph Analyzer & Comparator
 
-Upload a chart image and get a structured, AI-generated analysis of it — or upload
-two charts and get a side-by-side comparison. The backend uses a Groq multimodal
-model to extract structured facts from each image; a deterministic engine computes
-the numeric differences; and the AI then writes the interpretive prose over those
-facts (so the numbers are real and only the narrative is generated).
+A full-stack AI application that reads chart images and turns them into structured,
+verifiable analysis. Upload one chart to get a detailed breakdown, or upload two to
+get a side-by-side comparison. A Groq multimodal model extracts structured facts
+from each image, a deterministic engine computes the numeric differences, and the AI
+then interprets those computed facts — so the numbers are real and only the narrative
+is generated.
+
+## Live Links
+
+- Live Demo: https://graph-analyzer.onrender.com
+- API Documentation: https://graph-analyzer-api.onrender.com/api/docs
+
+## Screenshots
+
+| Dashboard | Single Analysis | Comparison |
+|-----------|-----------------|------------|
+| ![Dashboard](docs/screenshots/front.png) | ![Analysis](docs/screenshots/analyse.png) | ![Comparison](docs/screenshots/compare.png) |
 
 ## Overview
 
-The project has two workflows:
+The application has two workflows:
 
-1. **Single Graph Analysis** — one chart image in, one structured analysis out
-   (graph type, axes, highest/lowest values, trends, observations, business
-   insights, recommendations, summary).
-2. **Graph Comparison** — two chart images in. Each is analyzed independently, a
-   deterministic engine computes structural and numeric differences (absolute and
-   percent change, trend shifts, significant changes), and the AI interprets those
-   computed facts into comparative insights, recommendations, and a summary. When
-   the two graphs are not numerically comparable (different units, types, or
-   categories), the response says so explicitly instead of inventing numbers.
+**Single Graph Analysis** — one chart image in, one structured analysis out: graph
+type, axes, highest and lowest values, trends, observations, business insights,
+recommendations, and a summary, with explicit uncertainty handling.
+
+**Graph Comparison** — two chart images in. Each is analyzed independently, a
+deterministic engine computes the structural and numeric differences, and the AI
+interprets those computed facts into comparative insights, recommendations, and a
+summary. When the two charts are not numerically comparable (different units, types,
+or categories), the response says so explicitly instead of inventing numbers.
 
 ## Features
 
-- Multimodal graph extraction via Groq (`qwen/qwen3.6-27b`).
-- Typed, validated responses (pydantic v2) for both single analysis and comparison;
-  malformed or partial model output is normalized rather than crashing the request.
-- Deterministic comparison math (real deltas) separated from AI-written prose.
-- Honest degradation: if the interpretation call fails, the API falls back to a
-  deterministic interpretation derived from the computed comparison and flags that
-  it did so.
-- Input validation: MIME allow-list (PNG/JPEG/WebP), size limit, and a Pillow
-  integrity check that rejects malformed images.
-- Production hardening: structured logging, a global exception handler that returns
-  a generic message (no stack traces or internal details leak to clients), and
-  the blocking Groq SDK call is run in a worker thread to keep the event loop free.
-- Configurable CORS and API base URL via environment variables — nothing about the
-  deployment target is hardcoded.
+- Structured extraction of graph type, axis labels, and units.
+- Highest and lowest values with their labels and confidence.
+- Maximum and minimum trend descriptions.
+- Observations, business insights, and recommendations.
+- A concise natural-language summary of the chart.
+- Uncertainty handling — unknown numeric values are left null with a note rather than
+  guessed.
+- Comparison of similarities and differences across the two charts.
+- Absolute and percentage change for comparable values.
+- Trend comparison between the two charts.
+- Detection of significant changes.
+- Comparability checks that flag when two charts cannot be numerically compared.
+- AI-generated comparative interpretation grounded in the computed facts.
 
-## Architecture
+## Why This Isn't Just an LLM Wrapper
+
+The numbers in a comparison are never produced by the language model. The workflow
+separates extraction, computation, and interpretation:
+
+- The Groq multimodal model extracts **structured** information from each chart image
+  (type, axes, values, trends) rather than free-form prose.
+- A deterministic comparison engine calculates the numerical differences — absolute
+  and percentage change, trend shifts, and significant changes — in plain code.
+- The AI then interprets the **already-computed** comparison facts into readable
+  insights; it does not invent or recalculate the numbers.
+- Pydantic v2 validates every structured response, so malformed or partial model
+  output is normalized instead of crashing the request.
+- During the comparison interpretation step the raw images are not re-sent — only the
+  structured, extracted facts are passed to the model.
+
+This keeps the quantitative results deterministic and reproducible while still using
+the model for the qualitative work it's actually good at.
+
+## How It Works
+
+Single graph analysis:
 
 ```
-apps/
-  backend/                 FastAPI service
-    app/
-      main.py              app factory: CORS, logging, global exception handler
-      core/
-        config.py          env-driven Settings (pydantic-settings)
-        logging_config.py  logging setup
-        errors.py          error/response helpers
-      api/
-        routes_health.py   GET  /api/health
-        routes_analyze.py  POST /api/v1/analyze
-        routes_compare.py  POST /api/v1/compare
-      services/
-        groq_graph_service.py  Groq calls: extract analysis + interpret comparison
-        comparison_engine.py   deterministic deltas, prompt builder, safe fallback
-      models/
-        analysis.py        SingleGraphAnalysis, ValuePoint
-        comparison.py      GraphComparisonResult, ComparisonInterpretation, ...
-      utils/
-        image_validation.py    MIME/size/integrity checks
-    tests/                 pytest suite (endpoint + normalization tests)
-    requirements.txt       production dependencies
-    requirements-dev.txt   + pytest, httpx (test/dev only)
-  frontend/                React + TypeScript + Vite single-page app
-    src/
-      main.tsx             BrowserRouter root
-      app/App.tsx          routes + nav
-      pages/               HomePage, AnalyzePage, ComparePage
-      services/api.ts      API client (base URL from VITE_API_BASE_URL)
-deployment/
-  render.yaml              Render Blueprint for the backend (native Python runtime)
-docs/                      architecture and API notes
+image
+  -> validate (MIME / size / integrity)
+  -> Groq multimodal extraction
+  -> JSON normalization
+  -> Pydantic validation
+  -> structured analysis
 ```
 
-Request flow for comparison: `image A, image B → validate → Groq extracts a
-structured analysis of each → deterministic engine computes the differences → Groq
-interprets those computed facts into prose → validated response`. The raw images
-are not re-sent for the interpretation step; the already-extracted structured data
-is reused.
+Graph comparison:
+
+```
+image A + image B
+  -> validate each
+  -> Groq extracts a structured analysis of each
+  -> deterministic engine computes the differences
+  -> Groq interprets the computed facts (images not re-sent)
+  -> Pydantic validation
+  -> structured comparison + interpretation
+```
 
 ## Tech Stack
 
-- **Backend:** Python 3.11+, FastAPI, uvicorn, pydantic v2 / pydantic-settings,
-  Pillow, groq SDK.
-- **Frontend:** React 18, TypeScript, Vite 6, React Router 6.
-- **AI:** Groq multimodal chat completions.
+**Backend:** Python, FastAPI, Uvicorn, Pydantic v2 / pydantic-settings, Pillow,
+Groq Python SDK.
 
-## Local Setup
+**Frontend:** React, TypeScript, Vite, React Router.
 
-### Backend
+**AI:** Groq multimodal chat completions (`qwen/qwen3.6-27b`).
 
-1. From `apps/backend`, create and activate a virtual environment (Python 3.11+):
+**Tooling & hosting:** GitHub, Render.
 
-   ```bash
-   cd apps/backend
-   python -m venv .venv
-   # Windows:      .venv\Scripts\activate
-   # macOS/Linux:  source .venv/bin/activate
-   ```
+## Project Structure
 
-2. Install dependencies (production only, or dev for tests):
+```
+graph-analyzer/
+├── apps/
+│   ├── backend/
+│   └── frontend/
+├── deployment/
+│   └── render.yaml
+├── docs/
+│   ├── architecture.md
+│   ├── api.md
+│   └── screenshots/
+├── .gitignore
+├── .python-version
+└── README.md
+```
 
-   ```bash
-   pip install -r requirements.txt          # runtime
-   pip install -r requirements-dev.txt      # runtime + pytest/httpx
-   ```
+## API
 
-3. Create your local env file from the template and add your Groq key:
+Base URL in production: `https://graph-analyzer-api.onrender.com`
 
-   ```bash
-   cp .env.example .env        # Windows: copy .env.example .env
-   # edit .env: set GROQ_API_KEY=your_key
-   ```
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| `GET`  | `/api/health` | — | Liveness check. Returns `{"status":"ok","service":"graph-analyzer-api","version":"0.1.0"}`. |
+| `POST` | `/api/v1/analyze` | multipart, field `file` | Structured analysis of a single chart (PNG/JPEG/WebP). |
+| `POST` | `/api/v1/compare` | multipart, fields `graph_a`, `graph_b` | Two analyses plus the computed comparison and AI interpretation. |
 
-### Frontend
+Interactive API documentation: https://graph-analyzer-api.onrender.com/api/docs
 
-1. From `apps/frontend`, install dependencies and create an env file:
+## Validation & Reliability
 
-   ```bash
-   cd apps/frontend
-   npm install
-   cp .env.example .env        # Windows: copy .env.example .env
-   # edit .env: set VITE_API_BASE_URL (defaults to http://localhost:8000)
-   ```
+- MIME allow-list for uploads (PNG/JPEG/WebP).
+- Upload size validation against a configurable limit.
+- Pillow integrity check that rejects malformed or corrupt images.
+- Pydantic v2 validation of every structured response.
+- JSON normalization so partial or loosely-shaped model output is coerced into the
+  expected schema instead of failing.
+- Defensive JSON extraction as a fallback when parsing the model output.
+- Uncertainty handling — unknown numeric values are left null with a note.
+- Deterministic numerical comparison computed in code, not by the model.
+- Structured logging for server-side diagnostics.
+- Sanitized client errors — a global exception handler returns a generic message so
+  stack traces and internal details never reach the client.
+- The blocking Groq SDK call runs in a worker thread to keep the async event loop
+  responsive.
 
-## Environment Variables
+## Local Development
 
-Backend (`apps/backend/.env`, template in `apps/backend/.env.example`):
-
-| Variable                  | Purpose                                         | Default (dev)                              |
-|---------------------------|-------------------------------------------------|--------------------------------------------|
-| `GROQ_API_KEY`            | Groq API key. Read only from the environment.   | *(none — required)*                        |
-| `GROQ_MODEL`              | Groq model id.                                  | `qwen/qwen3.6-27b`                         |
-| `APP_ENV`                 | Environment name.                               | `development`                              |
-| `LOG_LEVEL`               | Logging level.                                  | `INFO`                                      |
-| `CORS_ALLOWED_ORIGINS`    | Comma-separated allowed browser origins.        | `http://localhost:5173`                    |
-| `MAX_UPLOAD_MB`           | Max upload size (MB).                            | `8`                                         |
-| `REQUEST_TIMEOUT_SECONDS` | Groq request timeout.                            | `45`                                        |
-| `PORT`                    | Provided by the host (e.g. Render).             | `8000` locally                             |
-
-Frontend (`apps/frontend/.env`, template in `apps/frontend/.env.example`):
-
-| Variable            | Purpose                          | Default (dev)           |
-|---------------------|----------------------------------|-------------------------|
-| `VITE_API_BASE_URL` | Base URL of the backend API.     | `http://localhost:8000` |
-
-The Groq API key is **never** placed in the frontend or committed to source.
-`.env` files are gitignored; only `.env.example` templates are tracked.
-
-## Running Locally
-
-Backend (from `apps/backend`, with the venv active and `.env` set):
+Clone the repository:
 
 ```bash
+git clone <your-repo-url>
+cd graph-analyzer
+```
+
+Backend (from `apps/backend`):
+
+```bash
+cd apps/backend
+python -m venv .venv
+# Windows:      .venv\Scripts\activate
+# macOS/Linux:  source .venv/bin/activate
+
+pip install -r requirements.txt        # runtime
+pip install -r requirements-dev.txt    # + pytest, httpx (for tests)
+
+cp .env.example .env                   # Windows: copy .env.example .env
+# edit .env and set GROQ_API_KEY
+
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Frontend (from `apps/frontend`):
 
 ```bash
-npm run dev        # dev server on http://localhost:5173
-npm run build      # type-check + production build into dist/
-npm run preview    # serve the production build locally
+cd apps/frontend
+npm install
+
+cp .env.example .env                   # Windows: copy .env.example .env
+# edit .env and set VITE_API_BASE_URL (defaults to http://localhost:8000)
+
+npm run dev                            # dev server on http://localhost:5173
 ```
 
-## API Endpoints
+## Testing
 
-- `GET /api/health` — fast liveness check. Returns
-  `{"status":"ok","service":"graph-analyzer-api","version":"0.1.0"}`. No Groq call,
-  no auth, no image.
-- `POST /api/v1/analyze` — multipart form, field `file` (PNG/JPEG/WebP). Returns the
-  structured single-graph analysis.
-- `POST /api/v1/compare` — multipart form, fields `graph_a` and `graph_b`. Returns
-  both analyses plus the comparison (similarities, differences, value deltas, trend
-  comparison, significant changes, comparability flags, and AI-interpreted insights,
-  recommendations, and summary).
+Backend tests (from `apps/backend`):
 
-Interactive API docs are available at `/api/docs` when the server is running.
+```bash
+python -m pytest
+```
+
+Frontend type-check and production build (from `apps/frontend`):
+
+```bash
+npm run build
+```
 
 ## Deployment
 
-The backend deploys to **Render as a native Python Web Service** via the Blueprint
-at `deployment/render.yaml`. See `DEPLOYMENT_RUNBOOK.md` for the
-full step-by-step guide. In short:
+The backend runs as a **Render Web Service** and the frontend as a **Render Static
+Site**. Backend configuration lives in `deployment/render.yaml` (build, start
+command, and health check at `/api/health`). The frontend's `VITE_API_BASE_URL`
+points at the deployed backend URL, and the backend's `CORS_ALLOWED_ORIGINS` allows
+the deployed frontend origin. Secrets such as `GROQ_API_KEY` are set through
+environment variables in the host, never committed.
 
-1. Push the repo to GitHub.
-2. In Render, create a **Blueprint** from the repo; it detects `deployment/render.yaml`
-   and configures the `graph-analyzer-api` service (build: `pip install -r
-   requirements.txt`, start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`,
-   health check: `/api/health`).
-3. Set the `GROQ_API_KEY` secret in the Render dashboard (it is declared with
-   `sync: false`, so it is never committed).
-4. After deploy, set `CORS_ALLOWED_ORIGINS` to your frontend's public URL.
+## Environment Variables
 
-The frontend is a static single-page app and can be deployed to any static host
-(Render Static Site, Netlify, Cloudflare Pages, etc.):
+Backend (`apps/backend/.env`, template in `apps/backend/.env.example`):
 
-- Build command: `npm run build`; publish directory: `apps/frontend/dist`.
-- Set `VITE_API_BASE_URL` to your deployed backend URL at build time.
-- Because it uses client-side routing (React Router), add a **rewrite** so all
-  paths serve `index.html`. A `public/_redirects` file (`/* /index.html 200`) is
-  included for hosts that honor it; on Render Static Sites add the equivalent
-  rewrite rule (Source `/*` → Destination `/index.html`, Action Rewrite).
+| Variable | Purpose | Default (dev) |
+|----------|---------|---------------|
+| `GROQ_API_KEY` | Groq API key. Read only from the environment. | *(none — required)* |
+| `GROQ_MODEL` | Groq model id. | `qwen/qwen3.6-27b` |
+| `APP_ENV` | Environment name. | `development` |
+| `LOG_LEVEL` | Logging level. | `INFO` |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated allowed browser origins. | `http://localhost:5173` |
+| `MAX_UPLOAD_MB` | Max upload size (MB). | `8` |
+| `REQUEST_TIMEOUT_SECONDS` | Groq request timeout (seconds). | `45` |
+| `PORT` | Provided by the host (e.g. Render). | `8000` locally |
+
+Frontend (`apps/frontend/.env`, template in `apps/frontend/.env.example`):
+
+| Variable | Purpose | Default (dev) |
+|----------|---------|---------------|
+| `VITE_API_BASE_URL` | Base URL of the backend API. | `http://localhost:8000` |
+
+## Security
+
+The `GROQ_API_KEY` is backend-only — it is never exposed to the frontend, never
+hardcoded in source, and never committed. `.env` files are gitignored; only
+`.env.example` templates are tracked.
+
+## Documentation
+
+- [API reference](docs/api.md)
+- [Architecture](docs/architecture.md)
+
+## Future Improvements
+
+- Support for additional chart types and richer axis/series extraction.
+- Batch analysis of multiple charts in one request.
+- Exporting an analysis or comparison as a downloadable report.
+
+## License
+
+This is a personal portfolio project. No formal open-source license is currently
+applied; please contact the author before reusing it.
