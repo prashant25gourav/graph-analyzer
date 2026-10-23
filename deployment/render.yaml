@@ -29,6 +29,6 @@ services:
       # Comma-separated list of allowed browser origins. Defaults to local dev;
       # update to your frontend's public URL after deploying it.
       - key: CORS_ALLOWED_ORIGINS
-        value: http://localhost:5173
+        value: http://localhost:5173,https://graph-analyzer.onrender.com
       - key: GROQ_API_KEY
         sync: false
