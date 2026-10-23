@@ -37,3 +37,6 @@ coverage.xml
 # Local test image artifacts (generated during manual testing at repo root)
 /test_chart_*.png
 
+# Local reference notes
+dive_deep.md
+

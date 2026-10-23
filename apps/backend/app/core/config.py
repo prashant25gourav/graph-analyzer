@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
-    groq_model: str = Field(default="qwen/qwen3.6-27b", alias="GROQ_MODEL")
+    groq_model: str = Field(default="qwen/qwen3.8-27b", alias="GROQ_MODEL")
     cors_allowed_origins: str = Field(default="http://localhost:5173", alias="CORS_ALLOWED_ORIGINS")
 
     max_upload_mb: int = Field(default=8, alias="MAX_UPLOAD_MB")

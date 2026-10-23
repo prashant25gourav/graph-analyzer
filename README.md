@@ -10,7 +10,6 @@ is generated.
 ## Live Links
 
 - Live Demo: https://graph-analyzer.onrender.com
-- API Documentation: https://graph-analyzer-api.onrender.com/api/docs
 
 ## Screenshots
 
@@ -99,7 +98,7 @@ Groq Python SDK.
 
 **Frontend:** React, TypeScript, Vite, React Router.
 
-**AI:** Groq multimodal chat completions (`qwen/qwen3.6-27b`).
+**AI:** Groq multimodal chat completions (`qwen/qwen3.8-27b`).
 
 **Tooling & hosting:** GitHub, Render.
 
@@ -218,7 +217,7 @@ Backend (`apps/backend/.env`, template in `apps/backend/.env.example`):
 | Variable | Purpose | Default (dev) |
 |----------|---------|---------------|
 | `GROQ_API_KEY` | Groq API key. Read only from the environment. | *(none — required)* |
-| `GROQ_MODEL` | Groq model id. | `qwen/qwen3.6-27b` |
+| `GROQ_MODEL` | Groq model id. | `qwen/qwen3.8-27b` |
 | `APP_ENV` | Environment name. | `development` |
 | `LOG_LEVEL` | Logging level. | `INFO` |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated allowed browser origins. | `http://localhost:5173` |

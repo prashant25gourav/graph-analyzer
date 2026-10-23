@@ -82,7 +82,7 @@ class GroqGraphService:
                     }
                 ],
                 temperature=0.1,
-                # qwen/qwen3.6-27b is a qwen3 reasoning model. Disable reasoning
+                # qwen/qwen3.8-27b is a qwen3 reasoning model. Disable reasoning
                 # (reasoning_effort="none") so the model spends its generation on
                 # the answer, and force JSON Object Mode so the content is a valid
                 # JSON object. Without reasoning_effort="none" the model reasons
